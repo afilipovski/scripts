@@ -1,7 +1,13 @@
-Set objShell = CreateObject("WScript.Shell")
+Dim pythonScriptPath
+pythonScriptPath = WScript.Arguments(0)
 
-strDirectory = "D:\Raspberry Pi Service Backups\.utils"
+Dim shell
+Set shell = CreateObject("WScript.Shell")
 
-objShell.CurrentDirectory = strDirectory
+' Construct the command to run the Python script
+Dim command
+command = "python """ & pythonScriptPath & """"
 
-objShell.Run "get_backup.bat", 0, True
+' Run the command
+Dim exitCode
+shell.Run command, 0, True
