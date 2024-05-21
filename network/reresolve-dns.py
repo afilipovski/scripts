@@ -2,6 +2,7 @@ import platform
 import subprocess
 import os
 import re
+import time
 
 if platform.system() == "Windows":
     # Run with admin privileges.
@@ -21,6 +22,7 @@ if platform.system() == "Windows":
 
         if address != endpoint_ip:
             subprocess.run(["wireguard", "/uninstalltunnelservice", interface_name])
+            time.sleep(1)
             subprocess.run(["wireguard", "/installtunnelservice", f"{config_dir}\\{filename}"])
             print("Old ip "+address+" new ip "+endpoint_ip)
         else:
