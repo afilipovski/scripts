@@ -9,7 +9,7 @@ import dns.resolver as resolver
 def get_ip(hostname: str) -> str:
     res = resolver.Resolver()
     res.nameservers = ['8.8.8.8']
-    answers = res.resolve(qname=endpoint_name)
+    answers = res.resolve(qname=hostname)
     for rdata in answers:
         return rdata.address
 
