@@ -1,18 +1,30 @@
-import datetime
+import logging
 import os
 import platform
 import re
 import subprocess
 import time
+from logging.handlers import TimedRotatingFileHandler
 
-import dns.resolver as resolver
-
-from tinylogger.tinylogger import TinyLogger
+from dns import resolver
 
 res = resolver.Resolver()
 res.nameservers = ['8.8.8.8', '8.8.4.4', '1.1.1.1', '1.0.0.1']
 
-logger = TinyLogger("reresolve-dns", datetime.timedelta(days=3))
+logger = logging.getLogger("ReresolveDnsLogger")
+logger.setLevel(logging.DEBUG)
+
+handler = TimedRotatingFileHandler(
+    r"C:\Users\Aleksandar\PycharmProjects\scripts\network\reresolve-dns.log",
+    when="midnight",
+    interval=1,
+    backupCount=1
+)
+
+formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
 
 def get_hostname_ip(hostname: str) -> str:
     answers = res.resolve(qname=hostname)
@@ -51,10 +63,10 @@ for filename in os.listdir(config_dir):
             subprocess.run(["wireguard", "/uninstalltunnelservice", interface])
             time.sleep(1)
             subprocess.run(["wireguard", "/installtunnelservice", f"{config_dir}\\{filename}"])
-            logger.log("Old ip " + address + " new ip " + endpoint_ip)
+            logger.info("Old ip " + address + " new ip " + endpoint_ip)
         else:
-            logger.log("Address is up to date")
+            logger.info("Address is up to date")
     except resolver.LifetimeTimeout:
-        logger.log(f"DNS could not be resolved for hostname {endpoint_name}")
+        logger.error(f"DNS could not be resolved for hostname {endpoint_name}")
     except IndexError:
-        logger.log(f"Interface {interface} is not active.")
+        logger.error(f"Interface {interface} is not active.")
