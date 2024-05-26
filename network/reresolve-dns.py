@@ -8,6 +8,13 @@ from logging.handlers import TimedRotatingFileHandler
 
 from dns import resolver
 
+if platform.system() == "Windows":
+    # Run with admin privileges.
+    config_dir = f"{os.getenv('USERPROFILE')}\\Documents\\WireGuard Configurations"
+else:
+    print("OS not supported yet")
+    exit(1)
+
 res = resolver.Resolver()
 res.nameservers = ['8.8.8.8', '8.8.4.4', '1.1.1.1', '1.0.0.1']
 
@@ -15,7 +22,7 @@ logger = logging.getLogger("ReresolveDnsLogger")
 logger.setLevel(logging.DEBUG)
 
 handler = TimedRotatingFileHandler(
-    r"C:\Users\Aleksandar\PycharmProjects\scripts\network\reresolve-dns.log",
+    fr"{config_dir}\reresolve-dns.log",
     when="midnight",
     interval=1,
     backupCount=1
@@ -25,6 +32,7 @@ formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
 handler.setFormatter(formatter)
 
 logger.addHandler(handler)
+
 
 def get_hostname_ip(hostname: str) -> str:
     answers = res.resolve(qname=hostname)
@@ -45,28 +53,30 @@ def get_wg_ip(interface_name: str) -> str:
     return endpoint_line.split()[-1].split(":")[0]
 
 
-if platform.system() == "Windows":
-    # Run with admin privileges.
-    config_dir = f"{os.getenv('USERPROFILE')}\\Documents\\WireGuard Configurations"
-else:
-    print("OS not supported yet")
-    exit(1)
+exponential_backoff_retries = 5
 
 for filename in os.listdir(config_dir):
     interface = filename.split(".")[0]
     endpoint_name = get_hostname_config(f"{config_dir}\\{filename}")
 
-    try:
-        address = get_hostname_ip(endpoint_name)
-        endpoint_ip = get_wg_ip(interface)
-        if address != endpoint_ip:
-            subprocess.run(["wireguard", "/uninstalltunnelservice", interface])
-            time.sleep(1)
-            subprocess.run(["wireguard", "/installtunnelservice", f"{config_dir}\\{filename}"])
-            logger.info("Old ip " + address + " new ip " + endpoint_ip)
-        else:
-            logger.info("Address is up to date")
-    except resolver.LifetimeTimeout:
-        logger.error(f"DNS could not be resolved for hostname {endpoint_name}")
-    except IndexError:
-        logger.error(f"Interface {interface} is not active.")
+    for i in range(exponential_backoff_retries):
+        try:
+            address = get_hostname_ip(endpoint_name)
+            endpoint_ip = get_wg_ip(interface)
+            if address != endpoint_ip:
+                subprocess.run(["wireguard", "/uninstalltunnelservice", interface])
+                time.sleep(1)
+                subprocess.run(["wireguard", "/installtunnelservice", f"{config_dir}\\{filename}"])
+                logger.info("Old ip " + address + " new ip " + endpoint_ip)
+            else:
+                logger.info("Address is up to date")
+            exit(0)
+        except resolver.LifetimeTimeout:
+            logger.error(f"DNS could not be resolved for hostname {endpoint_name}")
+            logger.info(f"Exponential backoff - sleeping for {2 ** i}s.")
+            time.sleep(2 ** i)
+        except IndexError:
+            logger.error(f"Interface {interface} is not active.")
+            exit(1)
+
+logger.error(f"(catastrophic) could not resolve DNS after {exponential_backoff_retries} tries")
